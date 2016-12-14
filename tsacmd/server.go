@@ -101,7 +101,14 @@ func (server *registrarSSHServer) handshake(logger lager.Logger, netConn net.Con
 	chansGroup.Wait()
 }
 
-func (server *registrarSSHServer) handleChannel(logger lager.Logger, sessionID string, forwardedTCPIPs <-chan forwardedTCPIP, chansGroup *sync.WaitGroup, channel ssh.Channel, requests <-chan *ssh.Request) {
+func (server *registrarSSHServer) handleChannel(
+	logger lager.Logger,
+	sessionID string,
+	forwardedTCPIPs <-chan forwardedTCPIP,
+	chansGroup *sync.WaitGroup,
+	channel ssh.Channel,
+	requests <-chan *ssh.Request,
+) {
 	var processes []ifrit.Process
 
 	// ensure processes get cleaned up
@@ -206,7 +213,7 @@ func (server *registrarSSHServer) handleChannel(logger lager.Logger, sessionID s
 				logger.Error("failed-to-register", err)
 				return
 			}
-
+			watchForProcessToExit(logger, process, channel)
 			processes = append(processes, process)
 
 		case forwardWorkerRequest:
@@ -623,4 +630,17 @@ func keepaliveDialerFactory(network string, address string) gconn.DialerFunc {
 	return func(string, string) (net.Conn, error) {
 		return keepaliveDialer(network, address)
 	}
+}
+
+func watchForProcessToExit(logger lager.Logger, process ifrit.Process, channel ssh.Channel) {
+	logger = logger.Session("wait-for-process-or-connection-to-finish")
+
+	go func() {
+		err := <-process.Wait()
+		if err == nil {
+			channel.SendRequest("exit-status", false, ssh.Marshal(exitStatusRequest{0}))
+		}
+
+		channel.Close()
+	}()
 }
