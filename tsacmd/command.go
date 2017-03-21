@@ -13,12 +13,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/concourse/atc"
 	"github.com/concourse/tsa"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/sigmon"
-	"github.com/tedsuo/rata"
 	"github.com/xoebus/zest"
 )
 
@@ -34,8 +32,8 @@ type TSACommand struct {
 	AuthorizedKeysPath     FileFlag        `long:"authorized-keys" required:"true" description:"Path to file containing keys to authorize, in SSH authorized_keys format (one public key per line)."`
 	TeamAuthorizedKeysPath []InputPairFlag `long:"team-authorized-keys" value-name:"NAME=PATH" description:"Path to file containing keys to authorize, in SSH authorized_keys format (one public key per line)."`
 
-	ATCURL                URLFlag  `long:"atc-url" required:"true" description:"ATC API endpoint to which workers will be registered."`
-	SessionSigningKeyPath FileFlag `long:"session-signing-key" required:"true" description:"Path to private key to use when signing tokens in reqests to the ATC during registration."`
+	ATCURLs               []URLFlag `long:"atc-url" required:"true" description:"ATC API endpoints to which workers will be registered."`
+	SessionSigningKeyPath FileFlag  `long:"session-signing-key" required:"true" description:"Path to private key to use when signing tokens in reqests to the ATC during registration."`
 
 	HeartbeatInterval time.Duration `long:"heartbeat-interval" default:"30s" description:"interval on which to heartbeat workers to the ATC"`
 
@@ -62,7 +60,7 @@ func (cmd *TSACommand) Execute(args []string) error {
 func (cmd *TSACommand) Runner(args []string) (ifrit.Runner, error) {
 	logger, _ := cmd.constructLogger()
 
-	atcEndpoint := rata.NewRequestGenerator(cmd.ATCURL.String(), atc.Routes)
+	atcEndpointPicker := NewATCEndpointPicker(cmd.ATCURLs)
 
 	authorizedKeys, err := cmd.loadAuthorizedKeys()
 	if err != nil {
@@ -94,7 +92,7 @@ func (cmd *TSACommand) Runner(args []string) (ifrit.Runner, error) {
 		logger:            logger,
 		heartbeatInterval: cmd.HeartbeatInterval,
 		cprInterval:       1 * time.Second,
-		atcEndpoint:       atcEndpoint,
+		atcEndpointPicker: atcEndpointPicker,
 		tokenGenerator:    tokenGenerator,
 		forwardHost:       cmd.PeerIP,
 		config:            config,
