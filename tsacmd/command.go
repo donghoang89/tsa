@@ -185,7 +185,7 @@ func (cmd *TSACommand) loadSessionSigningKey() (*rsa.PrivateKey, error) {
 
 func (cmd *TSACommand) configureSSHServer(sessionAuthTeam *sessionTeam, authorizedKeys []ssh.PublicKey, teamAuthorizedKeys []TeamAuthKeys) (*ssh.ServerConfig, error) {
 	certChecker := &ssh.CertChecker{
-		IsAuthority: func(key ssh.PublicKey) bool {
+		IsUserAuthority: func(key ssh.PublicKey) bool {
 			return false
 		},
 
